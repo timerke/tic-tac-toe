@@ -49,7 +49,6 @@ class MainWindow(QMainWindow):
         :param player_index: winner index.
         """
 
-        print("HERE")
         if player_index == -1:
             message = "Ничья"
         else:

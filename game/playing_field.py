@@ -64,8 +64,7 @@ class Cell:
         self._symbol = new_symbol
         self._button.setIcon(QIcon())
         self._button.setIcon(QIcon(os.path.join(DIR_MEDIA, f"{new_symbol}.png")))
-        size = self._button.size()
-        self._button.setIconSize(QSize(3 * size.width() // 4, 3 * size.height() // 4))
+        self.resize()
 
     def clear(self) -> None:
         """
@@ -86,11 +85,19 @@ class Cell:
         color = "#2481BA" if self.symbol == "o" else "#1CB34B"
         self._button.setStyleSheet(f"background-color: {color};")
 
+    def resize(self) -> None:
+        """
+        Method resizes icon in button.
+        """
+
+        size = self._button.size()
+        self._button.setIconSize(QSize(3 * size.width() // 4, 3 * size.height() // 4))
+
     def set_button(self, button: QPushButton, callback_func: Callable) -> None:
         """
         Method sets button to cell.
         :param button: button;
-        :param callback_func:
+        :param callback_func: callback function to be called when cell is clicked.
         """
 
         self._button = button
@@ -174,16 +181,29 @@ class PlayingField:
                 cell.clear()
 
     def end_game(self) -> None:
+        """
+        Method ends game.
+        """
+
         for row in range(self._rows_and_columns):
             for column in range(self._rows_and_columns):
                 if self._cells[row][column].value == 0:
                     self._cells[row][column].disable()
 
+    def resize(self) -> None:
+        """
+        Method resizes icons in cell buttons.
+        """
+
+        for cells_in_column in self._cells:
+            for cell in cells_in_column:
+                cell.resize()
+
     def set_buttons_to_cells(self, buttons: List[List[QPushButton]], callback_func: Callable) -> None:
         """
         Method sets buttons to cells of playing field.
         :param buttons: list of buttons;
-        :param callback_func:
+        :param callback_func: callback function to be called when cell is clicked.
         """
 
         for row in range(self._rows_and_columns):

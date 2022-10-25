@@ -2,7 +2,7 @@ import os
 import random
 from PyQt5.uic import loadUi
 from PyQt5.QtCore import pyqtSlot
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QResizeEvent
 from PyQt5.QtWidgets import QMainWindow
 from game import ComputerPlayer, Game, Player
 from gui import utils as ut
@@ -54,6 +54,15 @@ class MainWindow(QMainWindow):
         else:
             message = f"Игрок #{player_index + 1} выиграл"
         ut.show_message("Информация", message)
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """
+        Method handles resize of main window.
+        :param event: resize event.
+        """
+
+        self._game.resize()
+        super().resizeEvent(event)
 
     @pyqtSlot()
     def start_game_with_computer(self) -> None:

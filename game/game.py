@@ -50,6 +50,9 @@ class Game(QObject):
             self._turn = (self._turn + 1) % 2
             self._make_move_for_computer()
 
+    def resize(self) -> None:
+        self._playing_field.resize()
+
     def set_buttons(self, buttons: List[List[QPushButton]]) -> None:
         self._playing_field.set_buttons_to_cells(buttons, self.make_move)
 

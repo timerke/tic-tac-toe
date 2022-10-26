@@ -1,6 +1,9 @@
-from typing import Dict, List
+import logging
 import select
 import socket
+from typing import Dict, List, Optional
+from PyQt5.QtCore import QObject
+import connection.params as params
 from connection.messenger import Messenger
 
 
@@ -8,7 +11,7 @@ MESSAGE: str = "MESSAGE"
 SOCKET: str = "SOCKET"
 
 
-class Server:
+class Server(QObject):
     """
     Class for server.
     """
@@ -16,9 +19,10 @@ class Server:
     MAX_CONNECTIONS: int = 5
     TIMEOUT: float = 0.1
 
-    def __init__(self, host: str, port: int) -> None:
-        self._host: str = host
-        self._port: int = port
+    def __init__(self) -> None:
+        super().__init__()
+        self._host: str = params.DEFAULT_HOST
+        self._port: int = None
         self._messenger: Messenger = Messenger()
         self._socket: socket.socket = None
         self._stop: bool = False
@@ -49,6 +53,17 @@ class Server:
             except Exception:
                 all_clients.remove(sock)
 
+    def _start_server(self, port: int) -> None:
+        """
+        Method tries to start server on given port.
+        :param port: port.
+        """
+
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket.bind((self._host, port))
+        self._socket.listen(self.MAX_CONNECTIONS)
+        self._socket.settimeout(self.TIMEOUT)
+
     def _write_responses(self, all_clients: List[socket.socket], tasks: List[Dict]) -> None:
         """
         Method sends responses to clients that need it.
@@ -67,12 +82,13 @@ class Server:
             finally:
                 del tasks[0]
 
-    def close(self) -> None:
+    def close_server(self) -> None:
         """
         Method closes server.
         """
 
         self._socket.close()
+        logging.info("Server was closed")
 
     @staticmethod
     def get_socket_param(sock: socket.socket) -> str:
@@ -84,21 +100,31 @@ class Server:
 
         return str(sock.getpeername())
 
-    def open_server(self) -> None:
+    def start_server(self) -> Optional[int]:
         """
-        Method opens server.
+        Method starts server on some port.
+        :return: port on which the server was able to start.
         """
 
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._socket.bind((self._host, self._port))
-        self._socket.listen(self.MAX_CONNECTIONS)
-        self._socket.settimeout(self.TIMEOUT)
+        for port in params.PORTS:
+            try:
+                self._start_server(port)
+                return port
+            except Exception:
+                continue
+        return None
 
     def run(self) -> None:
         """
         Method runs server.
         """
 
+        self._port = self.start_server()
+        if self._port is None:
+            logging.error("Server failed to start on all available ports [%d, %d]", min(params.PORTS),
+                          max(params.PORTS))
+            return
+        logging.info("Server running on port %d", self._port)
         all_clients = []
         tasks = []
         while not self._stop:

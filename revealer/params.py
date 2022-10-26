@@ -1,0 +1,3 @@
+REVEALER_HOST: str = "127.0.0.1"
+REVEALER_PORT: int = 6969
+SIZE: int = 4096

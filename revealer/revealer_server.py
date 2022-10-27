@@ -24,6 +24,7 @@ class RevealerServer(QThread):
 
         self._socket.close()
         logging.info("Revealer server was closed")
+        self.quit()
 
     def run(self) -> None:
         """

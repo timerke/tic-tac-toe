@@ -1,11 +1,12 @@
 import os
 import random
+import socket
 import uuid
-from PyQt5.QtCore import pyqtSlot, QThread
+from PyQt5.QtCore import pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QCloseEvent, QIcon, QResizeEvent
-from PyQt5.QtWidgets import QMainWindow
+from PyQt5.QtWidgets import QMainWindow, QMessageBox
 from PyQt5.uic import loadUi
-from connection.server import Server
+from connection import Client, Server
 from game import ComputerPlayer, Game, Player
 from gui import utils as ut
 from gui.connection_window import ConnectionWindow
@@ -17,6 +18,8 @@ class MainWindow(QMainWindow):
     Class for main window of application.
     """
 
+    choice_made: pyqtSignal = pyqtSignal(socket.socket, str)
+
     def __init__(self) -> None:
         super().__init__()
         self._game: Game = Game()
@@ -26,29 +29,30 @@ class MainWindow(QMainWindow):
         self._connection_window: ConnectionWindow = ConnectionWindow(self._login)
         self._revealer_client: RevealerClient = RevealerClient()
         self._revealer_server: RevealerServer = RevealerServer()
+        self._client: Client = Client()
         self._server: Server = Server()
-        self._thread_for_server: QThread = QThread()
         self._init_ui()
         self._connect_signals()
         self._revealer_client.start()
         self._revealer_server.start()
-        self._thread_for_server.start()
+        self._client.start()
+        self._server.start()
 
     def _connect_signals(self) -> None:
         """
         Method connects signals.
         """
 
-        self._thread_for_server.setTerminationEnabled(True)
-        self._server.moveToThread(self._thread_for_server)
-        self._thread_for_server.started.connect(self._server.run)
-        self._thread_for_server.finished.connect(self._server.close_server)
-
+        self._client.setTerminationEnabled(True)
+        self._server.setTerminationEnabled(True)
+        self._server.challenged.connect(self.handle_call_to_online_game)
         self._revealer_client.setTerminationEnabled(True)
         self._revealer_client.player_found.connect(self._connection_window.add_player)
         self._revealer_client.search_completed.connect(self._connection_window.complete_revealing)
         self._revealer_client.search_started.connect(self._connection_window.start_revealing)
         self._revealer_server.setTerminationEnabled(True)
+        self._connection_window.login_set.connect(self.set_login)
+        self._connection_window.opponent_selected.connect(self._client.start_game)
 
     def _init_ui(self) -> None:
         """
@@ -58,8 +62,6 @@ class MainWindow(QMainWindow):
         loadUi(os.path.join(ut.DIR_MEDIA, "main_window.ui"), self)
         self.setWindowTitle("Крестики-нолики")
         self.setWindowIcon(QIcon(os.path.join(ut.DIR_MEDIA, "icon.png")))
-
-        self._connection_window.login_set.connect(self.set_login)
 
         self.button_start_offline_game.clicked.connect(self.start_offline_game)
         self.button_start_game_with_computer.clicked.connect(self.start_game_with_computer)
@@ -82,8 +84,9 @@ class MainWindow(QMainWindow):
         """
 
         self._revealer_client.quit()
-        self._revealer_server.quit()
-        self._thread_for_server.quit()
+        self._revealer_server.close_server()
+        self._client.quit()
+        self._server.close_server()
         super().closeEvent(event)
 
     @pyqtSlot(int)
@@ -98,6 +101,22 @@ class MainWindow(QMainWindow):
         else:
             message = f"Игрок #{player_index + 1} выиграл"
         ut.show_message("Информация", message)
+
+    @pyqtSlot(socket.socket)
+    def handle_call_to_online_game(self, sock: socket.socket) -> None:
+        """
+        Slot handles call to start online game.
+        :param sock: socket of the opponent who called to play online.
+        """
+
+        if self._game.game_in_progress:
+            return
+        if QMessageBox.AcceptRole == ut.show_message("Информация", f"Игрок {sock.getsockname()} бросил Вам вызов. "
+                                                                   f"Хотите сыграть?", button_ok=True):
+            choice = "Yes"
+        else:
+            choice = "No"
+        self.choice_made.emit(sock, choice)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         """

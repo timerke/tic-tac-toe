@@ -1,8 +1,8 @@
 import logging
 import select
 import socket
-from typing import Dict, List, Optional
-from PyQt5.QtCore import QObject
+from typing import Dict, List
+from PyQt5.QtCore import pyqtSignal, QThread
 import connection.params as params
 from connection.messenger import Messenger
 
@@ -11,18 +11,19 @@ MESSAGE: str = "MESSAGE"
 SOCKET: str = "SOCKET"
 
 
-class Server(QObject):
+class Server(QThread):
     """
     Class for server.
     """
 
     MAX_CONNECTIONS: int = 5
     TIMEOUT: float = 0.1
+    challenged: pyqtSignal = pyqtSignal(socket.socket)
 
     def __init__(self) -> None:
         super().__init__()
         self._host: str = params.DEFAULT_HOST
-        self._port: int = None
+        self._port: int = params.PORT
         self._messenger: Messenger = Messenger()
         self._socket: socket.socket = None
         self._stop: bool = False
@@ -35,14 +36,15 @@ class Server(QObject):
         :param tasks: list of tasks for sending messages from server to clients.
         """
 
-        pass
+        if message.get("MESSAGE", None) == "Start game":
+            self.challenged.emit(sock)
 
-    def _read_messages(self, clients_to_read: List[socket.socket], all_clients: List[socket.socket], tasks: List[Dict]
-                       ) -> None:
+    def _get_messages(self, clients_to_read: List[socket.socket], clients: List[socket.socket], tasks: List[Dict]
+                      ) -> None:
         """
         Method reads messages from clients.
         :param clients_to_read: list of client sockets to read messages from;
-        :param all_clients: list of all client sockets;
+        :param clients: list of all client sockets;
         :param tasks: list of tasks for sending messages from server to clients.
         """
 
@@ -51,34 +53,23 @@ class Server(QObject):
                 message = self._messenger.get_message(sock)
                 self._process_message(message, sock, tasks)
             except Exception:
-                all_clients.remove(sock)
+                clients.remove(sock)
 
-    def _start_server(self, port: int) -> None:
-        """
-        Method tries to start server on given port.
-        :param port: port.
-        """
-
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._socket.bind((self._host, port))
-        self._socket.listen(self.MAX_CONNECTIONS)
-        self._socket.settimeout(self.TIMEOUT)
-
-    def _write_responses(self, all_clients: List[socket.socket], tasks: List[Dict]) -> None:
+    def _send_messages(self, clients: List[socket.socket], tasks: List[Dict]) -> None:
         """
         Method sends responses to clients that need it.
-        :param all_clients: list of all client sockets;
+        :param clients: list of all client sockets;
         :param tasks: list of tasks for sending messages from server to clients.
         """
 
         while tasks:
             task = tasks[0]
-            sock = task.get(SOCKET, None)
-            message = task.get(MESSAGE, None)
+            sock = task.get("SOCKET", None)
+            message = task.get("MESSAGE", None)
             try:
                 self._messenger.send_message(sock, message)
             except Exception:
-                all_clients.remove(sock)
+                clients.remove(sock)
             finally:
                 del tasks[0]
 
@@ -89,6 +80,7 @@ class Server(QObject):
 
         self._socket.close()
         logging.info("Server was closed")
+        self.quit()
 
     @staticmethod
     def get_socket_param(sock: socket.socket) -> str:
@@ -100,32 +92,31 @@ class Server(QObject):
 
         return str(sock.getpeername())
 
-    def start_server(self) -> Optional[int]:
+    def start_server(self) -> bool:
         """
         Method starts server on some port.
-        :return: port on which the server was able to start.
+        :return: True if server was started.
         """
 
-        for port in params.PORTS:
-            try:
-                self._start_server(port)
-                return port
-            except Exception:
-                continue
-        return None
+        try:
+            self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._socket.bind((self._host, self._port))
+            self._socket.listen(self.MAX_CONNECTIONS)
+            self._socket.settimeout(self.TIMEOUT)
+            return True
+        except Exception:
+            return False
 
     def run(self) -> None:
         """
         Method runs server.
         """
 
-        self._port = self.start_server()
-        if self._port is None:
-            logging.error("Server failed to start on all available ports [%d, %d]", min(params.PORTS),
-                          max(params.PORTS))
+        if not self.start_server():
+            logging.error("Server failed to start on port %d", self._port)
             return
         logging.info("Server running on port %d", self._port)
-        all_clients = []
+        clients = []
         tasks = []
         while not self._stop:
             try:
@@ -133,13 +124,13 @@ class Server(QObject):
             except OSError:
                 pass
             else:
-                all_clients.append(client_socket)
+                clients.append(client_socket)
             finally:
                 clients_to_read = []
                 try:
-                    clients_to_read, clients_to_write, errors = select.select(all_clients, all_clients, [], 0)
+                    clients_to_read, _, errors = select.select(clients, clients, [], 0)
                 except Exception:
                     pass
-                self._read_messages(clients_to_read, all_clients, tasks)
+                self._get_messages(clients_to_read, clients, tasks)
                 if tasks:
-                    self._write_responses(all_clients, tasks)
+                    self._send_messages(clients, tasks)

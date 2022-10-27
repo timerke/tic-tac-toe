@@ -1,30 +1,35 @@
+import logging
+import queue
 import socket
 import time
 from typing import Dict, Optional
-from PyQt5.QtCore import QObject
+from PyQt5.QtCore import pyqtSlot, QThread
 from connection.messenger import Messenger
+from connection.params import PORT
 
 
-class Client(QObject):
+class Client(QThread):
     """
     Class for client.
     """
 
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self._host: str = host
-        self._port: int = port
+        self._host: str = None
+        self._port: int = PORT
         self._messenger: Messenger = Messenger()
+        self._queue: queue.Queue = queue.Queue()
         self._socket: socket.socket = None
 
-    def connect(self) -> None:
+    def connect(self, host: str) -> None:
         """
         Method connects client to server.
+        :param host: server address to connect.
         """
 
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            self._socket.connect((self._host, self._port))
+            self._socket.connect((host, self._port))
         except ConnectionRefusedError:
             time.sleep(1)
 
@@ -38,6 +43,16 @@ class Client(QObject):
         except Exception:
             pass
 
+    def run(self) -> None:
+        while True:
+            if not self._queue.empty():
+                task = self._queue.get()
+                try:
+                    task()
+                except Exception as exc:
+                    logging.error(exc)
+            time.sleep(0.5)
+
     def send_message(self, message: Dict[str, str]) -> None:
         """
         Method sends messages to server.
@@ -48,3 +63,13 @@ class Client(QObject):
             self._messenger.send_message(self._socket, message)
         except Exception:
             pass
+
+    @pyqtSlot(str)
+    def start_game(self, address: str) -> None:
+        """
+        Slot starts game with server with given IP address.
+        :param address: server IP address.
+        """
+
+        self._queue.put(lambda: self.connect(address))
+        self._queue.put(lambda: self.send_message({"MESSAGE": "Start game"}))

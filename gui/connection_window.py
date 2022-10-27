@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 from PyQt5.QtCore import pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QDialog, QHeaderView, QLabel
+from PyQt5.QtWidgets import QAbstractItemView, QDialog, QHeaderView, QLabel
 from PyQt5.uic import loadUi
 from gui import utils as ut
 
@@ -15,6 +15,7 @@ class ConnectionWindow(QDialog):
 
     COLUMN_COUNT: int = 2
     login_set: pyqtSignal = pyqtSignal(str)
+    opponent_selected: pyqtSignal = pyqtSignal(str)
 
     def __init__(self, player_login: Optional[str] = None) -> None:
         super().__init__()
@@ -47,6 +48,8 @@ class ConnectionWindow(QDialog):
         self.table_widget.setColumnCount(self.COLUMN_COUNT)
         self.table_widget.setHorizontalHeaderLabels(["IP адрес", "Логин"])
         self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_widget.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.table_widget.cellDoubleClicked.connect(self.select_opponent)
 
     def _init_ui(self) -> None:
         """
@@ -61,6 +64,7 @@ class ConnectionWindow(QDialog):
         if self._login:
             self.line_edit_login.setText(self._login)
         self.button_set_login.clicked.connect(self.set_player_login)
+        self.button_select_player.clicked.connect(self.select_opponent)
         self.button_cancel.clicked.connect(self.close)
         self._init_table()
 
@@ -95,6 +99,18 @@ class ConnectionWindow(QDialog):
         for address in removed_addresses:
             self._remove_player(address)
         self._old_players = self._new_players
+
+    @pyqtSlot()
+    def select_opponent(self) -> None:
+        """
+        Slot selects opponent.
+        """
+
+        row = self.table_widget.currentRow()
+        widget = self.table_widget.cellWidget(row, 0)
+        if widget:
+            self.opponent_selected.emit(widget.text())
+            self.close()
 
     @pyqtSlot()
     def set_player_login(self) -> None:

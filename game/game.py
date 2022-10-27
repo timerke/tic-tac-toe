@@ -15,9 +15,18 @@ class Game(QObject):
 
     def __init__(self) -> None:
         super().__init__()
+        self._game_in_progress: bool = False
         self._players: List[Player] = []
         self._playing_field: PlayingField = PlayingField(self.ROWS_AND_COLUMNS)
         self._turn: int = 0
+
+    @property
+    def game_in_progress(self) -> bool:
+        """
+        :return: True if game is in progress.
+        """
+
+        return self._game_in_progress
 
     def _end_game(self, cells: List[Cell]) -> None:
         """
@@ -25,6 +34,7 @@ class Game(QObject):
         :param cells: list of cells that are lined up.
         """
 
+        self._game_in_progress = False
         if cells:
             for cell in cells:
                 cell.paint_cell()
@@ -63,6 +73,7 @@ class Game(QObject):
         :param player_2: second player.
         """
 
+        self._game_in_progress = True
         self._players = [player_1, player_2]
         self._playing_field.clear()
         self._turn = 0

@@ -75,8 +75,8 @@ class ConnectionWindow(QDialog):
         """
 
         for row in range(self.table_widget.rowCount()):
-            if self.cellWidget(row, 0).text() == address:
-                self.removeRow(row)
+            if self.table_widget.cellWidget(row, 0).text() == address:
+                self.table_widget.removeRow(row)
                 break
 
     @pyqtSlot(str, str)

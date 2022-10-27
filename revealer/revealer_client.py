@@ -4,9 +4,9 @@ import select
 import socket
 import time
 from datetime import datetime, timedelta
-import psutil
 from PyQt5.QtCore import pyqtSignal, QThread
 from revealer.params import REVEALER_PORT, SIZE
+from revealer.utils import get_local_network_ip_addresses
 
 
 class RevealerClient(QThread):
@@ -46,37 +46,27 @@ class RevealerClient(QThread):
         if timeout is None:
             timeout = waiting_time
         timeout = timedelta(seconds=timeout)
-        ifaces = psutil.net_if_addrs()
-        for iface_name, iface in ifaces.items():
+        for local_address in get_local_network_ip_addresses():
             if self.stop_search:
                 return
-            iface_name = iface_name.encode(errors="replace").decode(errors="replace")
-            for address in iface:
-                if self.stop_search:
-                    return
-                if address.family != socket.AF_INET:
-                    continue
-                try:
-                    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                        sock.bind((address.address, 0))
-                        sock.sendto("DISCOVER_TIC_TAC_TOE".encode(), ("255.255.255.255", REVEALER_PORT))
-                        sock.setblocking(0)
-                        time_end = datetime.utcnow() + timeout
-                        while True:
-                            if self.stop_search:
-                                return
-                            time_now = datetime.utcnow()
-                            time_left = (time_end - time_now).total_seconds()
-                            if time_left < 0:
-                                break
-                            ready = select.select([sock], [], [], time_left)
-                            if ready[0]:
-                                data, address = sock.recvfrom(SIZE)
-                                if data.startswith("DISCOVER_TIC_TAC_TOE".encode()):
-                                    self.player_found.emit(str(address[0]), self._parse_login(data))
-                except Exception as exc:
-                    logging.debug("Failed to bind to interface %s, address %s: %s", iface_name, address.address, exc)
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                    sock.sendto("DISCOVER_TIC_TAC_TOE".encode(), (local_address, REVEALER_PORT))
+                    time_end = datetime.utcnow() + timeout
+                    while True:
+                        if self.stop_search:
+                            return
+                        time_now = datetime.utcnow()
+                        time_left = (time_end - time_now).total_seconds()
+                        if time_left < 0:
+                            break
+                        ready = select.select([sock], [], [], time_left)
+                        if ready[0]:
+                            data, address = sock.recvfrom(SIZE)
+                            if data.startswith("DISCOVER_TIC_TAC_TOE".encode()):
+                                self.player_found.emit(str(address[0]), self._parse_login(data))
+            except Exception as exc:
+                logging.debug("Failed to connect to address %s: %s", local_address, exc)
 
     def run(self) -> None:
         while True:

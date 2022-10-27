@@ -1,8 +1,8 @@
 import logging
 import socket
 from PyQt5.QtCore import QThread
-from connection.utils import get_ip_address
 from revealer.params import REVEALER_PORT, SIZE
+from revealer.utils import get_ip_address
 
 
 class RevealerServer(QThread):
@@ -33,9 +33,9 @@ class RevealerServer(QThread):
         """
 
         if not self.start_server():
-            logging.error("Revealer server failed to start on port %d", self._port)
+            logging.error("Revealer server failed to start on address (%s, %d)", self._host, self._port)
             return
-        logging.info("Revealer server running on port %d", self._port)
+        logging.info("Revealer server running on address (%s, %d)", self._host, self._port)
         while not self._stop:
             try:
                 data, address = self._socket.recvfrom(SIZE)

@@ -5,6 +5,7 @@ from typing import Dict, List
 from PyQt5.QtCore import pyqtSignal, QThread
 import connection.params as params
 from connection.messenger import Messenger
+from connection.utils import get_ip_address
 
 
 MESSAGE: str = "MESSAGE"
@@ -22,7 +23,7 @@ class Server(QThread):
 
     def __init__(self) -> None:
         super().__init__()
-        self._host: str = params.DEFAULT_HOST
+        self._host: str = get_ip_address()
         self._port: int = params.PORT
         self._messenger: Messenger = Messenger()
         self._socket: socket.socket = None

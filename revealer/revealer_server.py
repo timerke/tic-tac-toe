@@ -1,7 +1,8 @@
 import logging
 import socket
 from PyQt5.QtCore import QThread
-from revealer.params import REVEALER_HOST, REVEALER_PORT, SIZE
+from connection.utils import get_ip_address
+from revealer.params import REVEALER_PORT, SIZE
 
 
 class RevealerServer(QThread):
@@ -11,7 +12,7 @@ class RevealerServer(QThread):
 
     def __init__(self) -> None:
         super().__init__()
-        self._host: str = REVEALER_HOST
+        self._host: str = get_ip_address()
         self._port: int = REVEALER_PORT
         self._login: str = None
         self._socket: socket.socket = None
